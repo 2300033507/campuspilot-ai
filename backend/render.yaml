@@ -20,6 +20,18 @@
 #     3. Pay $7/month for the Starter plan, which never sleeps.
 # =====================================================================
 
+# The Dockerfile is at the REPO ROOT, not in backend/.
+#
+# Render's API ignores dockerContext and dockerfilePath, so those can
+# only be set in the dashboard — and a setting that can silently differ
+# from the repo is worse than a layout that cannot. At the root, Render's
+# defaults (context = repo root, Dockerfile = ./Dockerfile) are correct
+# with nothing to configure.
+#
+# Set in the dashboard when creating the service:
+#   Runtime     : Docker
+#   Root dir    : (leave blank)
+#   Dockerfile  : ./Dockerfile
 services:
   - type: web
     name: campuspilot-api
@@ -39,7 +51,3 @@ services:
         generateValue: true
       - key: JAVA_TOOL_OPTIONS
         value: "-Xmx512m"
-
-    # Building inside Render needs no Dockerfile, but using one makes the
-    # JDK version explicit rather than inherited from Render's image.
-    dockerfilePath: ./Dockerfile

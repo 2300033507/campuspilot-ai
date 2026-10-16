@@ -1,0 +1,12 @@
+# Build context is the repo root, so ignore at repo-root granularity.
+.git/
+**/node_modules/
+**/dist/
+**/target/
+**/.env
+**/.env.*
+!**/.env.example
+.idea/
+*.iml
+HELP.md
+README.md
