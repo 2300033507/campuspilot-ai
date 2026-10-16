@@ -1,0 +1,49 @@
+# =====================================================================
+# CampusPilot AI — root .gitignore
+#
+# The single most important rule here: NEVER COMMIT SECRETS.
+# backend/.env holds your Supabase database password and JWT signing
+# secret. It is ignored twice on purpose (here and in backend/.gitignore)
+# because leaking it is unrecoverable — a leaked database password means
+# rotating it, and a leaked JWT secret means every existing token is
+# forgeable.
+# =====================================================================
+
+# --- Secrets ---------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# --- Java / Spring Boot build output ---------------------------------
+target/
+*.jar
+*.war
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/wrapper/maven-wrapper.jar
+
+# --- IDE -------------------------------------------------------------
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.classpath
+.project
+.settings/
+*.launch
+
+# --- Node (frontend, added later) ------------------------------------
+node_modules/
+dist/
+.vite/
+*.local
+
+# --- OS / editor noise ----------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~

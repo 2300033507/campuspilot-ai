@@ -1,0 +1,102 @@
+# =====================================================================
+# CampusPilot AI  |  application.yml
+#
+# SECRETS ARE NOT IN THIS FILE.
+# Every credential is read from an environment variable. This file is
+# committed to GitHub, so it must never contain a password.
+#
+# How to set them (PowerShell, current session only):
+#   $env:DB_URL="postgresql://postgres.abc123:YOUR_PASSWORD@aws-0-ap-south-1.pooler.supabase.com:5432/postgres"
+#   $env:DB_USERNAME="postgres.abc123"
+#   $env:DB_PASSWORD="YOUR_PASSWORD"
+#
+# For a permanent setting:  setx DB_URL "..."
+# =====================================================================
+
+spring:
+  application:
+    name: campuspilot-api
+
+  autoconfigure:
+    # Spring Boot auto-creates an in-memory user with a generated
+    # password when no UserDetailsService bean exists. We authenticate
+    # against our own profiles table with BCrypt and JWT, so that bean is
+    # never used — but its presence is confusing and invites the question
+    # "what is this generated password for?". Excluding it removes the
+    # warning and the dead code path.
+    exclude:
+      - org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
+
+  datasource:
+    # Use the SESSION POOLER URI from Supabase, not the direct connection.
+    # Direct connections time out on networks with a dynamic IP.
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/postgres}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    hikari:
+      maximum-pool-size: 5
+      connection-timeout: 10000
+
+  jpa:
+    # We never let Hibernate create or alter our schema. Flyway owns it.
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # The database already contains the schema, because it was applied by
+    # hand during Step 1. Without this, Flyway would try to re-create
+    # existing tables and fail. Baseline tells Flyway "adopt what is
+    # already here, and manage everything from version 1 onward".
+    baseline-on-migrate: true
+    baseline-version: 1
+
+server:
+  port: 8080
+  error:
+    include-message: always
+
+# =====================================================================
+# Authentication
+#
+# The secret has NO default on purpose. JwtService refuses to start with
+# a missing or short value rather than falling back to something
+# predictable — a hardcoded default secret is the single most common way
+# a JWT deployment gets compromised, because it ships in the repository.
+#
+# Generate one in PowerShell:
+#   [Convert]::ToBase64String((1..48 | ForEach-Object { Get-Random -Maximum 256 }))
+# =====================================================================
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+    ttl-hours: 24
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+# SQL logging is OFF by default, deliberately.
+#
+# org.hibernate.SQL=debug prints every statement AND its bound parameters.
+# Two reasons it must not be left on outside local development:
+#   1. Bound parameters carry user data (names, emails). That ends up in
+#      log files, which is a data-protection problem, not just noise.
+#   2. Formatting every statement is real I/O overhead.
+#
+# To watch SQL while debugging, start with the env var set:
+#   $env:SQL_LOGGING="debug"
+logging:
+  level:
+    org.hibernate.SQL: ${SQL_LOGGING:warn}
+    org.hibernate.orm.jdbc.bind: ${SQL_LOGGING:warn}

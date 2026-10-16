@@ -1,0 +1,23 @@
+# Normalise line endings so the same commit produces the same bytes on
+# every machine. Without this, Windows writes CRLF and Linux writes LF,
+# which makes every file show as modified when the repo moves between
+# them — noise that hides real changes in review.
+
+* text=auto eol=lf
+
+# Windows-only scripts must keep CRLF; cmd.exe misreads LF-only files.
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+*.ps1  text eol=crlf
+
+# Binary assets must never be line-ending translated.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
+*.jar  binary
+
+# Keep SQL diffs readable: trailing whitespace in SQL is meaningless.
+*.sql text eol=lf whitespace=-trailing-space
