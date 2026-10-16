@@ -30,9 +30,15 @@ spring:
   datasource:
     # Use the SESSION POOLER URI from Supabase, not the direct connection.
     # Direct connections time out on networks with a dynamic IP.
+    #
+    # No defaults for the credentials. A fallback of "postgres" would let
+    # a misconfigured deployment start up and then fail on the first
+    # query, or worse, quietly connect to something it should not. The
+    # same reasoning as refusing a default JWT_SECRET: fail at startup,
+    # where the error is obvious, rather than later.
     url: ${DB_URL:jdbc:postgresql://localhost:5432/postgres}
     username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:postgres}
+    password: ${DB_PASSWORD}
     hikari:
       maximum-pool-size: 5
       connection-timeout: 10000
