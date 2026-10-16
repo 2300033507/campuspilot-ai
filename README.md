@@ -1,297 +1,256 @@
 # CampusPilot AI
 
-Cloud-first academic management platform for students.
+A student academic management platform. The interesting part is not a
+dashboard — it is that **a student cannot mark themselves present**, and
+that the attendance arithmetic lives in PostgreSQL rather than in the
+browser.
 
-**Current status: Step 1 (database) verified. Step 2 (Spring Boot API) built and tested. Step 3 (authentication) complete — 20/20 tests, verified live.**
+**Live:** https://frontend-ashen-nu-28.vercel.app
+**API:** https://campuspilot-api-ge7m.onrender.com
+**Code:** https://github.com/2300033507/campuspilot-ai
+
+| Demo login | Password |
+|---|---|
+| `demo@campuspilot.dev` (student) | `campus2026pass` |
+| `faculty@campuspilot.dev` (faculty) | `faculty2026pass` |
+
+> **The free backend sleeps after 15 minutes idle.** A cold visit can take
+> 30–60 seconds while it wakes. Open the link shortly before showing it.
+
+---
+
+## What it does
+
+Students see how many classes they can **safely miss**, not just their
+percentage — and whether their target is still reachable at all.
 
 ```
-campuspilotai/
-├── db/                Step 1 SQL — schema, functions, RLS, tests, seed
-└── backend/           Step 2 — Spring Boot 4.1.1 / Java 21 REST API
+Digital Electronics   40.0%   IMPOSSIBLE
+  "You need 22 of the next 20 classes to reach 75%, but only 20
+   remain. No attendance pattern can recover this."
+
+DBMS                  90.0%   ON TRACK
+  "You can safely miss 4 more classes and still hold 75%."
+```
+
+The first case is the point. A naive app shows a hopeful number forever;
+this one says the target is unreachable.
+
+---
+
+## Architecture
+
+```
+React 19 + TypeScript   ──  Vercel
+        │
+        │  /api/*  (rewritten, so the frontend
+        │            contains no backend URL)
+        ▼
+Spring Boot 4.1.1       ──  Render
+        │
+        ▼
+Supabase Postgres 17    ──  data + RLS
+```
+
+Independent redeployment: change the backend and the frontend is untouched.
+Verified — the built bundle contains no backend hostname.
+
+---
+
+## The three decisions worth defending
+
+**1. No Java or TypeScript file does attendance arithmetic.**
+Not in a service, not in a component, not in a helper. Every number was
+computed by `attendance_health()` inside PostgreSQL and only read across
+the wire. A formula duplicated in two languages eventually disagrees, and
+nobody can tell which copy the user was looking at.
+
+**2. A student cannot award themselves perfect attendance.**
+`attendance_health()` is one SQL function; the rules around it are
+enforced in `AttendanceService` **before any repository call**. A student
+with a valid token calling the marking endpoint directly gets 403.
+
+Verified on the live deployment:
+
+```
+student marks themselves present -> 403
+student with no token            -> 401
+student reads class roster       -> 403
+faculty reads roster             -> 200
+```
+
+12 of the 27 tests exist solely for that. Every other test checks that
+something *computes* correctly; these check that the product is not
+meaningless if it breaks.
+
+**3. Adding authentication touched one file.**
+The app was built with an `X-Profile-Id` header first — openly insecure,
+a deliberate placeholder so the attendance module could be worked on
+before auth existed. Replacing it with verified JWT changed only
+`CurrentProfileResolver`, because every service already took a `profileId`
+as a parameter and never resolved identity itself.
+
+Same property later let the role model change without touching services.
+
+---
+
+## The domain model
+
+A subject is a **course offering**, not a student's copy:
+
+```
+subjects            an offering, owned by the teacher (faculty_id)
+enrollments         which students sit in it
+attendance_records  per (subject, student, date),
+                    stamped with marked_by and marked_at
+```
+
+The first version had each student owning private subject rows, so two
+students in one class shared nothing and a teacher marking attendance
+for one would know nothing about the other. Migration V3 moved the live
+data rather than dropping it.
+
+`marked_by` exists so a disputed attendance mark is traceable rather
+than arguable.
+
+---
+
+## Layout
+
+```
+db/            Step 1 SQL: schema, functions, RLS, tests, seed
+backend/       Spring Boot API — 27 tests
+frontend/      React + TypeScript — no test suite (see limitations)
+Dockerfile     at repo root, so Render needs no configuration
 ```
 
 ---
 
-## Step 2 — the API
+## Migrations
 
-| Component | State |
-|---|---|
-| Spring Boot 4.1.1, Java 21, Maven wrapper | building |
-| JPA entities for all three tables | done |
-| `SubjectController` — full CRUD, ownership-scoped | done |
-| `AttendanceController` — mark, list, delete | done |
-| `DashboardController` — reads `v_student_dashboard` | done |
-| Bean Validation on every request DTO | done |
-| `GlobalExceptionHandler` — one error shape for all failures | done |
-| Flyway with `baseline-on-migrate` | done |
-| `SubjectServiceTest` — 5 tests including access control | 5/5 pass |
-| Secrets read from environment variables, never committed | done |
-| Verified end to end against live Supabase | done |
-| Authentication | **not started** — `X-Profile-Id` header placeholder |
-
-### Verified live
+Flyway, applied forward once each in order. `baseline-on-migrate` adopts
+the Step 1 schema that was created by hand.
 
 ```
-GET    /api/dashboard          -> 6 subjects, all 5 status codes
-GET    /api/dashboard/summary  -> {"IMPOSSIBLE":1,"CRITICAL":1,"AT_RISK":1,"ON_TRACK":2,"NO_DATA":1}
-GET    /api/subjects           -> 6 subjects
-POST   /api/subjects           -> 201
-POST   duplicate name          -> 409 "You already have a subject named..."
-POST   attendance             -> 201
-POST   same date twice         -> 409 "already recorded for this subject"
-POST   future date             -> 400 "Cannot record attendance for a future class"
-POST   semester 99, code lower -> 400 with all 3 field errors at once
-GET    no header               -> 404 with the standard error shape
+V2  password_hash
+V3  faculty owns subjects; enrollments table; marked_by/marked_at;
+    moves live data; drops subjects.profile_id
+V4  role-aware RLS; v_attendance_health
 ```
 
-All responses share one error shape. No stack traces or SQL text leak to
-the client.
+**Never edit a migration that has run.** It will not re-run, so the edit
+silently does nothing except on a fresh database. Write a new one.
 
-### The central rule of this step
+---
 
-**No Java file in this project does attendance arithmetic.** There is no
-division, no `floor`, no percentage anywhere outside PostgreSQL. Every
-number came from `attendance_health()` before it reached the API.
-
-That matters because a formula duplicated in Java and SQL will eventually
-disagree, and nobody would know which copy the student was looking at.
-
-### Endpoints
-
-| Method | Path | Auth | Purpose |
-|---|---|---|---|
-| POST | `/api/auth/register` | public | create account, returns token |
-| POST | `/api/auth/login` | public | returns token |
-| GET | `/api/dashboard` | token | all subjects with computed health |
-| GET | `/api/dashboard/summary` | token | counts per status |
-| GET | `/api/subjects` | token | list |
-| POST | `/api/subjects` | token | create |
-| PUT | `/api/subjects/{id}` | token | update |
-| DELETE | `/api/subjects/{id}` | token | delete (cascades attendance) |
-| GET | `/api/subjects/{id}/attendance` | token | list records |
-| POST | `/api/subjects/{id}/attendance` | token | mark a class |
-| DELETE | `/api/subjects/{id}/attendance/{recordId}` | token | remove a record |
-| GET | `/actuator/health` | public | liveness |
-
-### Running it
+## Run it locally
 
 ```powershell
+# database
+#   run db/01..03_schema_and_rls in the Supabase SQL editor, in order
+#   db/04_verify.sql  -> 7 PASS
+#   db/06_seed_demo.sql
+
 cd backend
-Copy-Item .env.example .env     # then fill in Supabase values + JWT_SECRET
+Copy-Item .env.example .env     # add Supabase values + a 32-byte JWT_SECRET
+.\mvnw.cmd test                 # 27 tests
 .\run-local.ps1
-```
 
-Needs the **session pooler** host from Supabase plus a `JWT_SECRET` of at
-least 32 bytes. Then:
-
-```powershell
-# get a token
-$login = Invoke-RestMethod -Method POST `
-  -Uri http://localhost:8080/api/auth/login `
-  -ContentType "application/json" `
-  -Body (@{ email="demo@campuspilot.dev"; password="campus2026pass" } | ConvertTo-Json)
-
-# call the API with it
-Invoke-RestMethod -Uri http://localhost:8080/api/dashboard `
-  -Headers @{ Authorization = "Bearer $($login.token)" }
+cd ..\frontend
+npm install
+npm run dev                     # http://localhost:5173
 ```
 
 ---
 
-## Step 1 — what exists
+## Verification
 
-| Component | State |
-|---|---|
-| Schema — `profiles`, `subjects`, `attendance_records` | verified |
-| Constraints, foreign keys, indexes | verified |
-| `attendance_health()` — attendance maths, `IMMUTABLE` | verified, 7/7 tests pass |
-| `subject_attendance_summary()` | verified |
-| `v_student_dashboard` — full dashboard feed | verified |
-| Row Level Security on all 3 tables | verified, 5 policies |
-| `security_invoker` on the view | verified |
-| Demo data, all 5 status codes | verified |
-| Spring Boot API | not started |
-| React UI | not started |
-| Auth wiring (`auth_user_id` → `auth.users`) | not started |
-
----
-
-## Files
-
-| File | Purpose | Re-runnable |
+| Layer | What was checked | How |
 |---|---|---|
-| `01_schema.sql` | tables, constraints, indexes | yes |
-| `02_logic.sql` | `attendance_health()`, summary function | yes |
-| `03_rls.sql` | RLS policies, `security_invoker` | yes |
-| `04_verify.sql` | 7-case test suite for the maths | yes, read-only |
-| `05_remaining_classes.sql` | migration: adds remaining-classes estimate | yes |
-| `06_seed_demo.sql` | demo student with 6 subjects | yes |
-| `07_state_check.sql` | single-query health check, 6 checks | yes, read-only |
-| `verify_math.mjs` | independent JS check of the maths | `node db/verify_math.mjs` |
+| SQL | 7 cases incl. zero-data and unrecoverable | `db/04_verify.sql`, 7/7 |
+| SQL | schema state | `db/07_state_check.sql`, 6/6 |
+| Java | 27 tests | `mvnw test` |
+| Live | 403/401 rules hold in production | curl against Render |
+| Live | site renders real data | browser |
 
-Run them **in numeric order.** All are safe to re-run.
-
----
-
-## Why the calculation lives in the database
-
-The tempting version puts the percentage in a React `useMemo`. That is
-wrong, because it runs on a machine the student controls — open DevTools,
-change the number.
-
-Here the browser only *displays* what `attendance_health()` returns. It
-cannot influence the result.
+`backend/RunSql.java` runs a migration against the real database in one
+transaction and reports the first failing statement with its file offset.
+Flyway reports only the error message, costing a 15-second restart per
+attempt. `--dry-run` rolls back, so a migration can be validated without
+touching state. It found three bugs in V3 in seconds.
 
 ---
 
-## The calculation
+## Bugs found and fixed
 
-| Question | Formula |
-|---|---|
-| Current percentage | `attended / total × 100` |
-| Classes still skippable | `floor(100 × attended / target − total)` |
-| Classes that must be attended | `ceil((target × (total + future) − 100 × attended) / 100)` |
-| Is the target still reachable? | only if attending **every** remaining class suffices |
+Every one diagnosed from a real error, not from reading documentation.
 
-The last line is the part usually missed. A student at 40% with 20 classes
-left needs 22 to recover — more than exist. The app reports `IMPOSSIBLE`
-instead of showing a hopeful number forever.
-
----
-
-## Step 3 — authentication
-
-| Component | State |
-|---|---|
-| `POST /api/auth/register` | done |
-| `POST /api/auth/login` | done |
-| JWT issue + verify (jjwt, HS256) | done |
-| BCrypt password hashing, cost 10 | done |
-| Stateless Spring Security, all routes authenticated | done |
-| `V2__add_password_hash.sql` Flyway migration | applied to live DB |
-| 15 auth tests (forged, tampered, garbage, wrong-secret, short-secret) | 15/15 pass |
-| Secret from env var, app refuses to start without it | done |
-| Refresh tokens / revocation | **not done** — stated limitation below |
-
-### The swap cost one file
-
-Authentication was added *after* the attendance module worked. Changing
-identity from "whatever `X-Profile-Id` says" (openly insecure) to a
-verified JWT touched **only `CurrentProfileResolver`**.
-
-That was not luck. Every service already took `profileId` as a parameter
-and never resolved identity itself: the controller decides who the caller
-is, then passes the answer down. Controllers are the only place that
-needs to know how authentication works.
-
-### Verified live
-
-```
-GET  /api/dashboard   no token        -> 401 "Authentication required..."
-GET  /api/dashboard   garbage token   -> 401, IDENTICAL message
-GET  /api/dashboard   X-Profile-Id    -> 401  (old header is now dead)
-POST /api/auth/register               -> 201 + token, expiresIn=86400
-POST /api/auth/register duplicate     -> 409
-POST /api/auth/register short pw      -> 400 "at least 10 characters"
-POST /api/auth/login  wrong password  -> 401 "Email or password is incorrect"
-POST /api/auth/login  unknown email   -> 401, IDENTICAL message
-POST /api/auth/login  correct         -> 200 + token
-GET  /api/dashboard   with token      -> 200, all 6 subjects
-```
-
-The two "identical message" pairs are deliberate and tested. Distinguishing
-*"no such email"* from *"wrong password"* turns the login form into a tool
-for discovering which addresses have accounts.
-
-### Stated limitation
-
-A stateless token cannot be revoked before it expires. A session can. That
-is the real trade-off of JWT, and the honest fix is a refresh-token
-allowlist plus a short access-token TTL. The TTL here is 24h; a production
-system would use ~15 minutes plus refresh.
-
-### Demo account
-
-`demo@campuspilot.dev` / `campus2026pass` — pre-seeded in Step 1 with all
-six subjects. The password hash was set with pgcrypto's `crypt()`, which
-emits the same `$2a$` format Spring's BCrypt encoder produces.
-
----
-
-Each of these was diagnosed from a real error, not guessed at.
-
-1. **A failed SQL batch rolled back everything.** Multi-statement scripts
+1. **A failed SQL batch rolled back everything** — multi-statement scripts
    are atomic, so a broken view silently removed the function created two
-   statements earlier. Nothing partially applied.
-2. **`COUNT()` returns `bigint`.** Postgres will not narrow it to the
-   function's `integer` parameters, so the view failed with *function does
-   not exist* until cast with `::integer`.
-3. **`CREATE OR REPLACE VIEW` cannot add or reorder columns** — only
-   change the expression behind an existing one. Required `DROP VIEW`
-   then `CREATE VIEW`.
-4. **`Enable automatic RLS` at project creation** enables RLS on every new
-   table via an event trigger. This masked the fact that the policy script
-   had never run — RLS looked enabled, but zero policies existed.
-5. **The dashboard view passed `0` for classes remaining**, so the
-   `recoverable` flag collapsed to "am I already at target?" and every
-   struggling student would have been shown `IMPOSSIBLE`. Fixed by storing
-   an explicit `remaining_classes_estimate`.
+   statements earlier.
+2. **`COUNT()` returns `bigint`** — Postgres will not narrow it to an
+   `integer` parameter; the view failed with *function does not exist*
+   until cast with `::integer`.
+3. **`CREATE OR REPLACE VIEW` cannot add or reorder columns** — required
+   `DROP VIEW` then `CREATE VIEW`.
+4. **`Enable automatic RLS` masked a failure** — it enables RLS on every
+   new table, so policies looked configured while zero existed.
+5. **The `recoverable` flag was meaningless** — the view passed `0` for
+   classes remaining, collapsing it to "am I already at target?", so every
+   struggling student would have been shown `IMPOSSIBLE`.
 6. **`Repository<DashboardRow, UUID>`** — Spring Data requires a
-   repository's domain type to be a JPA entity. An interface projection
-   is not one, so startup failed with *Not a managed type*. The generic
-   became `Subject`; projections are still allowed as return types.
-7. **A unit test caught a real bug**: the duplicate-name check ran on the
-   *untrimmed* input, so `"DBMS"` and `"DBMS "` both passed the
-   pre-check. Now normalised before comparing.
-8. **Initializr's `.RELEASE` suffix isn't a real artifact version.**
-   `spring-boot-starter-parent:4.1.1.RELEASE` does not exist on Maven
-   Central; the published version is `4.1.1`.
-9. **Spring Boot 4 ships Jackson 3**, which moved to the `tools.jackson`
-   namespace. `com.fasterxml.jackson.databind.ObjectMapper` no longer
-   resolves. The annotations package is the exception and stays on
-   `com.fasterxml.jackson`.
-10. **`jjwt-jackson` is incompatible with Jackson 3.** It threw
-    `JacksonSerializer Unable to get public no-arg constructor` at runtime
-    — a compile-time-clean, test-time-fail combination. Switching to
-    `jjwt-gson` removed the Jackson dependency entirely.
-11. **A 0-byte parent POM in `~/.m2`.** `jjwt-root-0.12.6.pom` had been
-    left empty by an interrupted download, so JJWT resolved with broken
-    metadata. Purging the directory and pinning the version to one with
-    intact artifacts fixed it.
-12. **Spring Boot auto-created a default in-memory user** with a
-    generated password, because no `UserDetailsService` bean exists.
-    Unused here, but confusing; excluded explicitly.
+   repository's domain type to be a JPA entity; a projection is not one.
+7. **A unit test caught an untrimmed-name bug** — the duplicate check ran
+   before normalisation, so `"DBMS"` and `"DBMS "` both passed it.
+8. **`jjwt-jackson` fails at runtime against Jackson 3** — compiles clean,
+   dies on first use. Boot 4 moved to `tools.jackson`.
+9. **A 0-byte parent POM in `~/.m2`** from an interrupted download.
+10. **Spring Boot auto-created a default in-memory user** with a
+    generated password, unused here and confusing.
+11. **The Vite 8 template ships without React**, and without `jsx` or
+    `strict` — which removes most of the reason to use TypeScript.
+12. **Render's API silently dropped `dockerContext`/`dockerfilePath`** —
+    accepted the service, returned both empty, build failed with no
+    Dockerfile. Moved the Dockerfile to the repo root so the defaults work.
 
 ---
 
-## Rules for changing the schema
+## Limitations, stated rather than hidden
 
-- **Schema files build. Migration files change.**
-- Never edit `01_schema.sql` after it has been applied. Write a new
-  numbered file instead, the way `05_remaining_classes.sql` does.
-- `IF NOT EXISTS` is used for re-runnability, but it silently skips a
-  table that exists with the wrong shape. That is exactly why migrations
-  exist.
+**No frontend tests.** 27 backend tests, zero frontend. The asymmetry is
+the obvious gap.
+
+**Tokens are in `localStorage`**, readable by any script on the page. An
+`httpOnly` cookie is the better answer and needs CSRF protection on the
+backend. Named here so it can be discussed instead of discovered.
+
+**A stateless token cannot be revoked before it expires.** A session can.
+The TTL is 24h; production would use ~15 minutes plus a refresh-token
+allowlist.
+
+**Postgres RLS is bypassed by our own connection**, because Spring Boot
+connects as the table owner. The role rules that actually matter are
+enforced in Spring Security. RLS protects the public Data API surface —
+do not claim it is what stops a student marking attendance, because it is
+not.
+
+**Faculty get no dashboard of their own.** They are redirected to their
+class list, which is a stopgap. A real one needs an aggregate across the
+classes they teach.
+
+**The free backend sleeps after 15 minutes.** Fine for a demo, not for
+anything real.
 
 ---
 
-## Not yet built
+## Interview answers in one line each
 
-- **React frontend** — nothing is viewable in a browser yet
-- **GitHub repository** — no version control, so no history yet
-- Refresh tokens / token revocation
-- Faculty and admin roles (schema supports them, unused)
-- Assignments, marks, document library, AI study assistant, placement module
-- Deployment (Vercel frontend + Render backend)
-
-## Honest assessment
-
-What exists is genuinely solid and verifiable: a database with real
-constraints, RLS, and tested calculations; a Java API with ownership
-scoped on every query; and authentication that an attacker cannot bypass
-by guessing a header.
-
-What it is not is a product. There is no interface anyone can look at,
-and recruiters cannot see any of this without running it. Those are the
-next two pieces, in that order — the frontend makes it demonstrable, and
-GitHub makes it visible.
+| Question | Answer |
+|---|---|
+| Why PostgreSQL for the maths? | Client-side arithmetic isn't authoritative — the user controls the browser. |
+| How do you stop a student marking themselves present? | Role check in the service before any repository call; the UI hiding a button is not the control. |
+| What about object-level access? | `findByIdAndProfileId` returns empty for someone else's row, so a guessed id yields 404, not 403. |
+| How did you test security? | 12 tests where the failure mode is a student faking attendance; the failure message would be "everyone passed". |
+| Why not just check the role? | "Student" is not the negative of "faculty". Access is granted by naming the roles that have it. |
+| How do you keep one formula? | One implementation in Postgres. The frontend chooses wording, never thresholds. |
+| What was your best bug? | The `recoverable` flag that told every failing student their situation was impossible. |
