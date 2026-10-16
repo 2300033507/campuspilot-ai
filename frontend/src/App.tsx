@@ -1,4 +1,4 @@
-import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, NavLink, Route, Routes } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
@@ -15,10 +15,20 @@ function Header() {
           Campus<span>Pilot</span>
         </div>
         <nav className="nav">
-          <NavLink to="/" end>
-            Attendance
+          {/*
+            Teachers get no attendance dashboard of their own — the view
+            is built from enrollments, and a teacher is not enrolled in
+            the classes they teach. Showing them an empty page would look
+            broken, so the nav only offers what applies to them.
+          */}
+          {!canMarkAttendance && (
+            <NavLink to="/" end>
+              Attendance
+            </NavLink>
+          )}
+          <NavLink to="/subjects">
+            {canMarkAttendance ? 'My classes' : 'My subjects'}
           </NavLink>
-          <NavLink to="/subjects">{canMarkAttendance ? 'My subjects' : 'My subjects'}</NavLink>
         </nav>
         <div className="user-chip">
           <span>
@@ -35,7 +45,7 @@ function Header() {
 }
 
 export default function App() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, canMarkAttendance } = useAuth();
 
   // Routing is the only gate. The real enforcement is server-side on
   // every query — this just avoids rendering a shell the user cannot
@@ -52,7 +62,9 @@ export default function App() {
     <>
       <Header />
       <Routes>
-        <Route path="/" element={<DashboardPage />} />
+        <Route path="/" element={
+          canMarkAttendance ? <Navigate to="/subjects" replace /> : <DashboardPage />
+        } />
         <Route path="/subjects" element={<SubjectsPage />} />
         <Route path="/subjects/:subjectId/roster" element={<RosterRoute />} />
         <Route path="*" element={<Navigate to="/" replace />} />
