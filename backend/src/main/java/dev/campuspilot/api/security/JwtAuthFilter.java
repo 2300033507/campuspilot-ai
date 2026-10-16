@@ -56,12 +56,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
             try {
                 UUID profileId = jwt.parseProfileId(token);
+                String role = jwt.parseRole(token);
 
                 // A marker principal. It carries the caller's identity and
-                // nothing else — deliberately not the full user record,
-                // so a controller cannot accidentally trust stale claims
-                // such as a role that changed since the token was issued.
-                var principal = new AuthenticatedProfile(profileId);
+                // role and nothing else — deliberately not the full user
+                // record, so a controller cannot accidentally trust stale
+                // claims such as an email that changed since signing.
+                var principal = new AuthenticatedProfile(profileId, role);
                 var authentication = new UsernamePasswordAuthenticationToken(
                         principal, null, List.of());
                 authentication.setDetails(

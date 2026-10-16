@@ -3,9 +3,11 @@ import { useAuth } from './auth/AuthContext';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { SubjectsPage } from './pages/SubjectsPage';
+import { RosterRoute } from './pages/RosterRoute';
 
 function Header() {
-  const { fullName, role, logout } = useAuth();
+  const { fullName, role, canMarkAttendance, logout } = useAuth();
+
   return (
     <header className="app-header">
       <div className="app-header__inner">
@@ -16,7 +18,7 @@ function Header() {
           <NavLink to="/" end>
             Attendance
           </NavLink>
-          <NavLink to="/subjects">Subjects</NavLink>
+          <NavLink to="/subjects">{canMarkAttendance ? 'My subjects' : 'My subjects'}</NavLink>
         </nav>
         <div className="user-chip">
           <span>
@@ -35,7 +37,7 @@ function Header() {
 export default function App() {
   const { isAuthenticated } = useAuth();
 
-  // Routing is the only gate. The real enforcement is server-side, on
+  // Routing is the only gate. The real enforcement is server-side on
   // every query — this just avoids rendering a shell the user cannot
   // load data into.
   if (!isAuthenticated) {
@@ -52,6 +54,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/subjects" element={<SubjectsPage />} />
+        <Route path="/subjects/:subjectId/roster" element={<RosterRoute />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>

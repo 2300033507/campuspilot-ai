@@ -307,6 +307,36 @@ button.secondary:hover:not(:disabled) { background: var(--bg); }
 button.danger { background: #fff; color: var(--impossible); border-color: #fecaca; }
 button.danger:hover:not(:disabled) { background: var(--impossible-bg); }
 
+/* Present is the common case, so it gets a calm positive colour rather
+   than the alarming red used for "absent". */
+button.present-btn {
+  background: #fff;
+  color: var(--on-track);
+  border-color: #bbf7d0;
+}
+button.present-btn:hover:not(:disabled) { background: var(--on-track-bg); }
+
+.btn-link {
+  display: inline-block;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--brand);
+  text-decoration: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+.btn-link:hover { background: var(--bg); }
+
+.roster-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
 button.small { padding: 0.35rem 0.7rem; font-size: 0.82rem; }
 
 /* =====================================================================

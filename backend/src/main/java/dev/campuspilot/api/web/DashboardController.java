@@ -9,12 +9,14 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
- * The dashboard endpoint.
+ * Read-only, and available to every role — a teacher sees their own
+ * attendance health on the same terms as a student.
  *
  * <p>Try it:
- *   curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8080/api/dashboard
+ *   curl -H "Authorization: Bearer TOKEN" http://localhost:8080/api/dashboard
  */
 @RestController
 @RequestMapping("/api/dashboard")
@@ -30,11 +32,13 @@ public class DashboardController {
 
     @GetMapping
     public List<DashboardRow> dashboard() {
-        return dashboard.forProfile(currentProfile.resolve());
+        UUID profileId = currentProfile.resolveId();
+        return dashboard.forProfile(profileId);
     }
 
     @GetMapping("/summary")
     public Map<String, Long> summary() {
-        return dashboard.statusCounts(currentProfile.resolve());
+        UUID profileId = currentProfile.resolveId();
+        return dashboard.statusCounts(profileId);
     }
 }

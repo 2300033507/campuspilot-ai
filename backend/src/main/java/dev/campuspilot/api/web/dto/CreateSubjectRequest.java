@@ -2,6 +2,7 @@ package dev.campuspilot.api.web.dto;
 
 import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
+import java.util.UUID;
 
 /**
  * Payload for creating a subject.
@@ -33,6 +34,13 @@ public record CreateSubjectRequest(
 
         @Min(value = 0, message = "Remaining classes cannot be negative")
         @Max(value = 200, message = "Remaining classes cannot exceed 200")
-        Integer remainingClassesEstimate
+        Integer remainingClassesEstimate,
+
+        /**
+         * Only honoured for an admin creating an offering on a teacher's
+         * behalf. A faculty member assigning it to themselves would
+         * create a class they happen to teach, which is not the point.
+         */
+        UUID facultyId
 ) {
 }

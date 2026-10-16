@@ -8,11 +8,10 @@ import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 
 /**
- * Payload for marking one class as held, present or absent.
+ * Payload for recording one student's attendance in one class.
  *
- * <p>PastOrPresent blocks back-dating attendance into the future. The
- * database has no such check — that rule is business logic, so it lives
- * in the application.
+ * <p>PastOrPresent blocks back-dating into the future. The database has
+ * no such rule — that is business logic, so it belongs here.
  */
 public record MarkAttendanceRequest(
 

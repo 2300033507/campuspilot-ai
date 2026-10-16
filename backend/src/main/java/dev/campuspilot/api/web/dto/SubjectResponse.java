@@ -6,11 +6,9 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 /**
- * What the client gets back. Built from the entity through a static
- * factory so the JSON shape is decided in exactly one place.
- *
- * <p>Returning entities directly would expose every column, including
- * internal ones added later. DTOs keep that decision deliberate.
+ * Built from the entity through a static factory so the JSON shape is
+ * decided in exactly one place. Returning entities directly would expose
+ * every column, including ones added later.
  */
 public record SubjectResponse(
         UUID id,
@@ -18,7 +16,9 @@ public record SubjectResponse(
         String code,
         Integer semester,
         BigDecimal targetAttendance,
-        Integer remainingClassesEstimate
+        Integer remainingClassesEstimate,
+        /** Null when the offering is not yet assigned to a teacher. */
+        UUID facultyId
 ) {
 
     public static SubjectResponse from(Subject s) {
@@ -28,7 +28,8 @@ public record SubjectResponse(
                 s.getCode(),
                 s.getSemester(),
                 s.getTargetAttendance(),
-                s.getRemainingClassesEstimate()
+                s.getRemainingClassesEstimate(),
+                s.getFacultyId()
         );
     }
 }

@@ -10,14 +10,23 @@ import {
 import { api, clearToken, isLoggedIn, setToken } from '../api/client';
 import type { AuthResponse } from '../api/types';
 
+export type Role = 'student' | 'faculty' | 'admin';
+
 interface AuthState {
   isAuthenticated: boolean;
   fullName: string | null;
-  role: string | null;
-  /** Set when a login or register call fails, cleared on retry. */
+  role: Role | null;
   error: string | null;
-  /** True while a login request is in flight. Drives the button spinner. */
   busy: boolean;
+  /**
+   * Whether this account may record attendance.
+   *
+   * The UI hides controls the caller cannot use. That is convenience,
+   * NOT security — the server rejects a student's marking attempt with
+   * 403 regardless of what the browser renders. Keeping this here just
+   * avoids showing a button that is guaranteed to fail.
+   */
+  canMarkAttendance: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   register: (fullName: string, email: string, password: string) => Promise<boolean>;
   logout: () => void;
@@ -26,20 +35,23 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState | null>(null);
 
+function readRole(): Role | null {
+  const raw = localStorage.getItem('campuspilot.role');
+  return raw === 'faculty' || raw === 'admin' || raw === 'student' ? raw : null;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [authenticated, setAuthenticated] = useState(isLoggedIn);
-  const [fullName, setFullName] = useState<string | null>(
-    () => localStorage.getItem('campuspilot.name'),
+  const [fullName, setFullName] = useState<string | null>(() =>
+    localStorage.getItem('campuspilot.name'),
   );
-  const [role, setRole] = useState<string | null>(
-    () => localStorage.getItem('campuspilot.role'),
-  );
+  const [role, setRole] = useState<Role | null>(readRole);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   // The API client fires this event when the backend rejects a token, so
-  // an expired session drops the user to the login screen from anywhere
-  // in the app instead of leaving broken empty states on screen.
+  // an expired session drops to the login screen from anywhere in the
+  // app rather than leaving broken empty states on screen.
   useEffect(() => {
     const onUnauthorized = () => {
       setAuthenticated(false);
@@ -57,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('campuspilot.role', data.role);
     setAuthenticated(true);
     setFullName(data.fullName);
-    setRole(data.role);
+    setRole(data.role as Role);
   }, []);
 
   const login = useCallback(
@@ -68,9 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         applyAuth(await api.login(email, password));
         return true;
       } catch (err) {
-        setError(
-          err instanceof Error ? err.message : 'Could not sign in.',
-        );
+        setError(err instanceof Error ? err.message : 'Could not sign in.');
         return false;
       } finally {
         setBusy(false);
@@ -87,9 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         applyAuth(await api.register(name, email, password));
         return true;
       } catch (err) {
-        setError(
-          err instanceof Error ? err.message : 'Could not create account.',
-        );
+        setError(err instanceof Error ? err.message : 'Could not create account.');
         return false;
       } finally {
         setBusy(false);
@@ -114,6 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       role,
       error,
       busy,
+      canMarkAttendance: role === 'faculty' || role === 'admin',
       login,
       register,
       logout,
@@ -125,10 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-/**
- * Hook form. Throwing when used outside the provider turns a confusing
- * "context is null" crash into a message that names the actual mistake.
- */
+/** Throwing names the actual mistake instead of "context is null". */
 export function useAuth(): AuthState {
   const ctx = useContext(AuthContext);
   if (!ctx) {

@@ -47,14 +47,39 @@ export interface Subject {
   semester: number;
   targetAttendance: number;
   remainingClassesEstimate: number;
+  /** Null when the offering is not yet assigned to a teacher. */
+  facultyId: string | null;
 }
 
 export interface AttendanceRecord {
   id: string;
   subjectId: string;
+  /** Whose attendance this is. */
+  profileId: string;
   heldOn: string;
   status: 'present' | 'absent';
   note: string | null;
+  /** Who recorded it. Null on rows migrated before faculty marking. */
+  markedBy: string | null;
+  markedAt: string | null;
+}
+
+/**
+ * One student in a faculty member's class roster.
+ *
+ * <p>The figures come from the same attendance_health() call that fills
+ * the student's own dashboard, so a teacher and a student always see the
+ * same numbers for the same person.
+ */
+export interface RosterEntry {
+  profileId: string;
+  fullName: string;
+  email: string | null;
+  pct: number | null;
+  canSkip: number;
+  mustAttend: number;
+  recoverable: boolean;
+  status: AttendanceStatus;
 }
 
 export interface AuthResponse {

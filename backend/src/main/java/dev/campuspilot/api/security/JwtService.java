@@ -69,6 +69,30 @@ public class JwtService {
     }
 
     /**
+     * Reads a single claim out of a token.
+     *
+     * <p>Same reasoning as parseProfileId: any failure throws, so a
+     * caller cannot forget to handle the bad case.
+     */
+    public String parseRole(String token) {
+        try {
+            Claims claims = Jwts.parser()
+                    .verifyWith(key)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+
+            Object role = claims.get("role");
+            // Default to the LEAST privileged role if the claim is absent.
+            // Assuming admin on a missing claim would be the opposite.
+            return role == null ? "student" : role.toString();
+
+        } catch (JwtException | IllegalArgumentException ex) {
+            throw InvalidTokenException.missing();
+        }
+    }
+
+    /**
      * Returns the profile id from a token, or throws.
      *
      * <p>Throws on every failure mode — expired, tampered signature,

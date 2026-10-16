@@ -3,6 +3,7 @@ import type {
   AttendanceRecord,
   AuthResponse,
   DashboardRow,
+  RosterEntry,
   Subject,
 } from './types';
 import { ApiRequestError } from './types';
@@ -134,20 +135,33 @@ export const api = {
   deleteSubject: (id: string) =>
     request<void>(`/api/subjects/${id}`, { method: 'DELETE' }),
 
-  attendance: (subjectId: string) =>
+  /** The caller's OWN records for this subject. */
+  myAttendance: (subjectId: string) =>
     request<AttendanceRecord[]>(`/api/subjects/${subjectId}/attendance`),
 
+  /** Faculty only: the class roster. Server answers 403 for students. */
+  roster: (subjectId: string) =>
+    request<RosterEntry[]>(`/api/subjects/${subjectId}/attendance/roster`),
+
+  /**
+   * Faculty only: record one student for one date.
+   *
+   * There is deliberately no client method that lets a student mark
+   * themselves — the endpoint does not exist for them, and the server
+   * rejects the request with 403 regardless of what the UI shows.
+   */
   markAttendance: (
     subjectId: string,
+    studentId: string,
     body: { heldOn: string; status: 'present' | 'absent'; note?: string },
   ) =>
-    request<AttendanceRecord>(`/api/subjects/${subjectId}/attendance`, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    }),
+    request<AttendanceRecord>(
+      `/api/subjects/${subjectId}/attendance/students/${studentId}`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
 
   deleteAttendance: (subjectId: string, recordId: string) =>
-    request<void>(`/api/subjects/${subjectId}/attendance/${recordId}`, {
+    request<void>(`/api/subjects/${subjectId}/attendance/records/${recordId}`, {
       method: 'DELETE',
     }),
 };

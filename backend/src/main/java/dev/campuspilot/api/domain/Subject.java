@@ -10,13 +10,17 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * A subject a student is enrolled in.
+ * A COURSE OFFERING — one subject as taught by one teacher.
+ *
+ * <p>Deliberately not "a student's subject". The earlier model gave every
+ * student a private copy of every subject, which meant two students in
+ * the same class shared nothing and a teacher marking attendance for one
+ * would know nothing about the other. Students now reach a subject
+ * through {@link Enrollment}.
  *
  * <p>targetAttendance and remainingClassesEstimate are assumptions, not
- * facts, and the API lets the student edit both. Storing them explicitly
- * is what makes the "recoverable" flag meaningful: without
- * remainingClassesEstimate the calculation degrades to "am I already at
- * target?", which tells a struggling student nothing.
+ * facts, and are editable by whoever owns the offering. Storing them
+ * explicitly is what makes the "recoverable" flag meaningful.
  */
 @Entity
 @Table(name = "subjects")
@@ -30,8 +34,13 @@ public class Subject {
     @Column(name = "id", nullable = false, updatable = false)
     private UUID id;
 
-    @Column(name = "profile_id", nullable = false)
-    private UUID profileId;
+    /**
+     * The teacher. Nullable means the offering is not yet assigned to
+     * anyone, which is a legitimate state for a freshly created course —
+     * and one where only an admin may add attendance to it.
+     */
+    @Column(name = "faculty_id")
+    private UUID facultyId;
 
     @Column(name = "name", nullable = false)
     private String name;

@@ -1,6 +1,7 @@
 package dev.campuspilot.api.web;
 
 import dev.campuspilot.api.exception.ConflictException;
+import dev.campuspilot.api.exception.ForbiddenException;
 import dev.campuspilot.api.exception.NotFoundException;
 import dev.campuspilot.api.security.InvalidTokenException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -42,6 +43,19 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<ApiError> handleConflict(ConflictException ex, HttpServletRequest req) {
         return build(HttpStatus.CONFLICT, ex.getMessage(), req, null);
+    }
+
+    /**
+     * Authenticated, but not allowed to do this. 403 not 404 — the
+     * distinction is the difference between "log in" and "logging in
+     * will not help".
+     */
+    @ExceptionHandler(ForbiddenException.class)
+    public ResponseEntity<ApiError> handleForbidden(ForbiddenException ex,
+                                                    HttpServletRequest req) {
+        log.warn("403 on {} {} for role check: {}",
+                req.getMethod(), req.getRequestURI(), ex.getMessage());
+        return build(HttpStatus.FORBIDDEN, ex.getMessage(), req, null);
     }
 
     /**
