@@ -82,6 +82,30 @@ export interface RosterEntry {
   status: AttendanceStatus;
 }
 
+/**
+ * A campus landmark. Coordinates are WGS84 decimal degrees, which is what
+ * OpenStreetMap and OSRM both use.
+ */
+export interface CampusLocation {
+  id: string;
+  name: string;
+  description: string | null;
+  category: string;
+  building: string | null;
+  latitude: number;
+  longitude: number;
+}
+
+/** OSRM's response, passed through the backend mostly unchanged. */
+export interface OsrmRouteResponse {
+  code?: string;
+  routes?: {
+    distance: number;
+    duration: number;
+    geometry: { coordinates: number[][] };
+  }[];
+}
+
 export interface AuthResponse {
   profileId: string;
   fullName: string;

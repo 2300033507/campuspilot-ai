@@ -4,6 +4,7 @@ import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { SubjectsPage } from './pages/SubjectsPage';
 import { RosterRoute } from './pages/RosterRoute';
+import { CampusMapPage } from './pages/CampusMapPage';
 
 function Header() {
   const { fullName, role, canMarkAttendance, logout } = useAuth();
@@ -29,6 +30,7 @@ function Header() {
           <NavLink to="/subjects">
             {canMarkAttendance ? 'My classes' : 'My subjects'}
           </NavLink>
+          <NavLink to="/map">Campus map</NavLink>
         </nav>
         <div className="user-chip">
           <span>
@@ -67,6 +69,7 @@ export default function App() {
         } />
         <Route path="/subjects" element={<SubjectsPage />} />
         <Route path="/subjects/:subjectId/roster" element={<RosterRoute />} />
+        <Route path="/map" element={<CampusMapPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>

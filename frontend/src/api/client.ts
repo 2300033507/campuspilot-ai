@@ -2,7 +2,9 @@ import type {
   ApiError,
   AttendanceRecord,
   AuthResponse,
+  CampusLocation,
   DashboardRow,
+  OsrmRouteResponse,
   RosterEntry,
   Subject,
 } from './types';
@@ -185,4 +187,20 @@ export const api = {
     request<void>(`/api/subjects/${subjectId}/attendance/records/${recordId}`, {
       method: 'DELETE',
     }),
+
+  // --- campus navigation -------------------------------------------
+
+  campusLocations: () => request<CampusLocation[]>('/api/campus/locations'),
+
+  /** Proxied through the backend so OSRM is never called from the browser. */
+  campusRoute: (
+    fromLat: number,
+    fromLng: number,
+    toLat: number,
+    toLng: number,
+  ) =>
+    request<OsrmRouteResponse>(
+      `/api/campus/route?fromLat=${fromLat}&fromLng=${fromLng}` +
+        `&toLat=${toLat}&toLng=${toLng}`,
+    ),
 };

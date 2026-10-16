@@ -3,6 +3,7 @@ package dev.campuspilot.api.web;
 import dev.campuspilot.api.exception.ConflictException;
 import dev.campuspilot.api.exception.ForbiddenException;
 import dev.campuspilot.api.exception.NotFoundException;
+import dev.campuspilot.api.exception.RoutingUnavailableException;
 import dev.campuspilot.api.security.InvalidTokenException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
@@ -56,6 +57,28 @@ public class GlobalExceptionHandler {
         log.warn("403 on {} {} for role check: {}",
                 req.getMethod(), req.getRequestURI(), ex.getMessage());
         return build(HttpStatus.FORBIDDEN, ex.getMessage(), req, null);
+    }
+
+    /**
+     * Upstream routing failed. 502, not 500 — the fault is elsewhere, and
+     * saying so tells the client to retry rather than to give up.
+     */
+    @ExceptionHandler(RoutingUnavailableException.class)
+    public ResponseEntity<ApiError> handleRouting(RoutingUnavailableException ex,
+                                                  HttpServletRequest req) {
+        log.warn("Routing unavailable on {}: {}",
+                req.getRequestURI(), ex.getMessage());
+        return build(HttpStatus.BAD_GATEWAY, ex.getMessage(), req, null);
+    }
+
+    /** Upstream refused or timed out — RestClient raises RestClientException. */
+    @ExceptionHandler(org.springframework.web.client.RestClientException.class)
+    public ResponseEntity<ApiError> handleUpstream(
+            org.springframework.web.client.RestClientException ex,
+            HttpServletRequest req) {
+        log.warn("Upstream call failed on {}: {}", req.getRequestURI(), ex.getMessage());
+        return build(HttpStatus.BAD_GATEWAY,
+                "The routing service is unavailable. Try again shortly.", req, null);
     }
 
     /**
