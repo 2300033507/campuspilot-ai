@@ -8,7 +8,28 @@ import type {
 } from './types';
 import { ApiRequestError } from './types';
 
-const BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080';
+/**
+ * Where the API lives.
+ *
+ * Three cases, and the difference matters for deployment:
+ *
+ *   - VITE_API_BASE_URL set  -> use it, whatever it is.
+ *   - development            -> localhost:8080, proxied by Vite so the
+ *                              browser sees one origin and no CORS
+ *                              preflight happens at all.
+ *   - production, unset      -> the EMPTY STRING, meaning "same origin".
+ *
+ * That last case is the point. In production Vercel rewrites /api/* to
+ * Render, so requests leave the page as relative paths. The frontend
+ * therefore never contains a backend URL, and redeploying the backend
+ * to a new address does NOT require rebuilding the frontend.
+ *
+ * Baking the backend URL into a build is the common mistake here: change
+ * the backend host and every browser keeps calling the old one.
+ */
+const BASE: string =
+  import.meta.env.VITE_API_BASE_URL ??
+  (import.meta.env.DEV ? 'http://localhost:8080' : '');
 
 /**
  * Reads the JWT out of localStorage.

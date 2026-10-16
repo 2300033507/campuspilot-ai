@@ -1,0 +1,45 @@
+# =====================================================================
+# Render blueprint — deploys the Spring Boot API.
+#
+# WHY THIS FILE EXISTS
+#   It records the build and start commands in version control, so the
+#   Render dashboard cannot drift from what the project actually needs.
+#   Reading the deploy settings off a config file beats clicking through
+#   a form and forgetting something.
+#
+# WHAT RENDER FREE TIER ACTUALLY COSTS YOU
+#   The service sleeps after 15 minutes without traffic. The first
+#   request afterwards takes roughly 30-60 seconds while it wakes. So a
+#   link sent to a recruiter may show a blank page, then load a minute
+#   later. That is acceptable for a portfolio demo and unacceptable for
+#   anything else — mention it rather than hope nobody clicks.
+#
+#   Mitigations, in order of effort:
+#     1. Open the URL yourself shortly before a demo to wake it.
+#     2. Add a cron ping from a free scheduler.
+#     3. Pay $7/month for the Starter plan, which never sleeps.
+# =====================================================================
+
+services:
+  - type: web
+    name: campuspilot-api
+    runtime: docker
+    plan: free
+    region: singapore
+    healthCheckPath: /actuator/health
+
+    envVars:
+      - key: DB_URL
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JAVA_TOOL_OPTIONS
+        value: "-Xmx512m"
+
+    # Building inside Render needs no Dockerfile, but using one makes the
+    # JDK version explicit rather than inherited from Render's image.
+    dockerfilePath: ./Dockerfile
